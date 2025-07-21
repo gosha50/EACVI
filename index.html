@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ePCWP & LAP Estimator</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#007bff">
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 20px;
+      max-width: 480px;
+      margin: auto;
+      background-color: #f4f4f4;
+    }
+    h2 {
+      text-align: center;
+      color: #333;
+    }
+    label {
+      display: block;
+      margin: 15px 0 5px;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    button {
+      margin-top: 20px;
+      padding: 12px;
+      width: 100%;
+      font-size: 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    #result {
+      margin-top: 25px;
+      padding: 15px;
+      background-color: #fff;
+      border-radius: 5px;
+      font-size: 1.1em;
+      color: #222;
+    }
+    .pass { color: green; font-weight: bold; }
+    .fail { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<h2>ePCWP & LAP Estimator</h2>
+
+<label for="E">E (Mitral inflow velocity) [cm/s]</label>
+<input type="number" id="E" step="0.1" inputmode="decimal">
+
+<label for="ePrime">e′ (Annular velocity) [cm/s]</label>
+<input type="number" id="ePrime" step="0.1" inputmode="decimal">
+
+<label for="lavi">LAVI (Left Atrial Volume Index) [mL/m²]</label>
+<input type="number" id="lavi" step="0.1" inputmode="decimal">
+
+<label for="trVelocity">TR Velocity [m/s]</label>
+<input type="number" id="trVelocity" step="0.1" inputmode="decimal">
+
+<label for="dt">Mitral E Deceleration Time [ms]</label>
+<input type="number" id="dt" step="1" inputmode="decimal">
+
+<button onclick="calculate()">Calculate</button>
+
+<div id="result" aria-live="polite"></div>
+
+<script>
+  function calculate() {
+    const E = parseFloat(document.getElementById('E').value);
+    const ePrime = parseFloat(document.getElementById('ePrime').value);
+    const lavi = parseFloat(document.getElementById('lavi').value);
+    const tr = parseFloat(document.getElementById('trVelocity').value);
+    const dt = parseFloat(document.getElementById('dt').value);
+    const result = document.getElementById('result');
+
+    if (isNaN(E) || isNaN(ePrime) || ePrime === 0) {
+      result.innerText = "Please enter valid values for E and e′ (e′ must be non-zero).";
+      return;
+    }
+
+    const ratio = E / ePrime;
+    const ePCWP = 1.24 * ratio + 1.9;
+
+    let abnormal = 0;
+    const findings = [];
+
+    findings.push(`E/e′ > 14 → <span class="${ratio > 14 ? 'pass' : 'fail'}">${ratio > 14 ? '✅' : '❌'}</span>`);
+    if (!isNaN(lavi)) {
+      findings.push(`LAVI > 34 → <span class="${lavi > 34 ? 'pass' : 'fail'}">${lavi > 34 ? '✅' : '❌'}</span>`);
+      if (lavi > 34) abnormal++;
+    }
+    if (!isNaN(tr)) {
+      findings.push(`TR velocity > 2.8 → <span class="${tr > 2.8 ? 'pass' : 'fail'}">${tr > 2.8 ? '✅' : '❌'}</span>`);
+      if (tr > 2.8) abnormal++;
+    }
+    if (!isNaN(dt)) {
+      findings.push(`DT < 160 ms → <span class="${dt < 160 ? 'pass' : 'fail'}">${dt < 160 ? '✅' : '❌'}</span>`);
+      if (dt < 160) abnormal++;
+    }
+
+    if (ratio > 14) abnormal++;
+
+    let interpretation = '';
+    if (abnormal >= 3) interpretation = "Elevated";
+    else if (abnormal === 2) interpretation = "Indeterminate";
+    else interpretation = "Normal";
+
+    result.innerHTML = `
+      <p><strong>Step 1: ePCWP Estimation</strong></p>
+      <p>E/e′ = <strong>${ratio.toFixed(1)}</strong></p>
+      <p>Estimated PCWP ≈ <strong>${ePCWP.toFixed(1)} mmHg</strong></p>
+      <p><em>(E/e′ > 14 suggests elevated LAP)</em></p>
+      <hr>
+      <p><strong>Step 2: LAP Classification (per ASE/EACVI 2016)</strong></p>
+      <ul>${findings.map(f => `<li>${f}</li>`).join('')}</ul>
+      <p>➡ <strong>${abnormal} abnormal criteria</strong></p>
+      <p><strong>LAP Classification: ${interpretation}</strong></p>
+    `;
+  }
+
+  // Service worker registration
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log("Service Worker registered:", reg.scope))
+        .catch(err => console.log("Service Worker registration failed:", err));
+    });
+  }
+</script>
+
+</body>
+</html>
